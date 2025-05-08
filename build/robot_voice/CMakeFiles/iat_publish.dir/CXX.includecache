@@ -45,6 +45,16 @@ ros/ros.h
 /home/amadeus/forTurtle/src/robot_voice/src/ros/ros.h
 std_msgs/String.h
 /home/amadeus/forTurtle/src/robot_voice/src/std_msgs/String.h
+queue
+-
+vector
+-
+string
+-
+algorithm
+-
+thread
+-
 
 /opt/ros/noetic/include/ros/advertise_options.h
 ros/forwards.h
