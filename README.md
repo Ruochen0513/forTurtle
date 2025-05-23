@@ -21,8 +21,37 @@
 - roslaunch turtlebot_rviz_launchers view_navigation.launch 启动rviz可视化工具
 - rosrun teleop_twist_keyboard teleop_twist_keyboard.py 控制移动机器人运动
 ### 导航
-- echo "export TURTLEBOT_GAZEBO_WORLD_FILE=xxx" >> ~/.bashrc 设置地图路径
+- echo "export TURTLEBOT_MAP_FILE=xxx" >> ~/.bashrc 设置地图路径
 - source ~/.bashrc
 - roslaunch turtlebot_bringup minimal.launch use_sim_time:=False 启动移动机器人底盘
 - roslaunch turtlebot_navigation amcl_demo.launch 启动amcl定位
 - roslaunch turtlebot_rviz_launchers view_navigation.launch --screen 启动rviz可视化工具
+### 使用自己写的程序导航
+- echo "export TURTLEBOT_MAP_FILE=xxx" >> ~/.bashrc 设置地图路径
+- source ~/.bashrc
+- roslaunch turtlebot_bringup minimal.launch 启动移动机器人底盘
+- roslaunch turtlebot_navigation amcl_demo.launch 启动amcl定位
+- roslaunch turtlebot_rviz_launchers view_navigation.launch --screen 启动rviz可视化工具
+- rosrun my_pkg navigation.py
+/home/amadeus/forTurtle/src/my_pkg/map/my_map.yaml
+
+## 机器人手臂控制
+### 操作系统USB链接
+- $ ls /dev/ttyUSB0
+### USB权限
+- $ sudo dmesg -c
+- $ sudo chmod 666 /dev/ttyUSB0
+- /etc/udev/rules.d/70-ttyusb.rules
+- KERNEL=="ttyUSB[0-9]*", MODE="0666"
+- 重启系统
+### 启动控制器管理器
+- $ roslaunch my_dynamixel controller_manager.launch
+### 启动控制器
+- $ roslaunch my_dynamixel start_tilt_controller.launch
+### 话题演示
+- $ rostopic list
+    - /motor_states/ttyUSB0
+    - /tilt_controller/command
+    - /tilt_controller/state
+### 源码控制
+- rosrun my_dynamixel arm_demo.py

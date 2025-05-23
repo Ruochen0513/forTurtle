@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# 用于语音控制小车运动的ROS节点
 import rospy
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String

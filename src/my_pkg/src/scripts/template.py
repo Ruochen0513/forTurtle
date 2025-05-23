@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+#用于图像匹配的ROS节点
 from cv_bridge import CvBridge, CvBridgeError
 import rospy
 import cv2

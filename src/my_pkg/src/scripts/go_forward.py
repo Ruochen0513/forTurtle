@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# 用于控制小车前进的ROS节点
 import rospy
 from geometry_msgs.msg import Twist
 
