@@ -39,6 +39,7 @@
 ### 操作系统USB链接
 - $ ls /dev/ttyUSB0
 ### USB权限
+
 - $ sudo dmesg -c
 - $ sudo chmod 666 /dev/ttyUSB0
 - /etc/udev/rules.d/70-ttyusb.rules
