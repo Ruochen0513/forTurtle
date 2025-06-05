@@ -1,0 +1,36 @@
+<launch>
+    <!-- 启动turtlebot的基础节点 -->
+    <include file="$(find turtlebot_bringup)/launch/minimal.launch" />
+    
+    <!-- 启动amcl定位 -->
+    <include file="$(find turtlebot_navigation)/launch/amcl_demo.launch" />
+    
+    <!-- 启动blind_assistant1的各节点，每个在单独的终端中 -->
+    <!-- 语音识别 -->
+    <node name="tts" pkg="blind_assistant1" type="tts.py" output="screen" 
+          launch-prefix="gnome-terminal --tab --title=语音合成 -e " />
+    <!-- 语音识别 -->
+    <node name="asr" pkg="blind_assistant1" type="asr.py" output="screen" 
+          launch-prefix="gnome-terminal --tab --title=语音识别 -e " />
+    <!-- 中心控制节点 -->
+    <node name="center_node" pkg="blind_assistant1" type="center_node.py" output="screen" 
+          launch-prefix="gnome-terminal --tab --title=中心节点 -e " />
+    <!-- 运动控制 -->
+    <node name="robot_control" pkg="blind_assistant1" type="robot_control.py" output="screen" 
+          launch-prefix="gnome-terminal --tab --title=运动控制 -e " />
+    <!-- 导航节点 -->
+    <node name="nav_controller" pkg="blind_assistant1" type="nav_controller.py" output="screen" 
+          launch-prefix="gnome-terminal --tab --title=导航 -e " />
+    <!-- 图像识别节点 -->
+      <node name="image_recognition" pkg="blind_assistant1" type="image_recognition.py" output="screen" 
+            launch-prefix="gnome-terminal --tab --title=图像识别 -e " />
+      <node name="video_cap" pkg="blind_assistant1" type="video_cap.py" output="screen"/>
+
+    <!-- 机械臂节点 -->
+      <!-- 启动控制器管理器 -->
+      <include file="$(find my_dynamixel)/launch/controller_manager.launch" />
+      <!-- 启动控制器 -->
+      <include file="$(find my_dynamixel)/launch/start_tilt_controller.launch" />
+      <node name="arm_control" pkg="blind_assistant1" type="arm_control.py" output="screen" 
+            launch-prefix="gnome-terminal --tab --title=机械臂控制 -e " />
+</launch>
