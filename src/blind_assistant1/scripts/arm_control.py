@@ -2,47 +2,53 @@
 import rospy
 import subprocess
 import time
-from std_msgs.msg import Bool, Int32
+from std_msgs.msg import Bool, Int32, String
 
 class ArmController:
     def __init__(self):
         # 初始化节点
         rospy.init_node('arm_controller', anonymous=True)
         
-        # 创建发布者，发布到已存在的voice_cmd话题
-        self.voice_cmd_pub = rospy.Publisher('voice_cmd', Int32, queue_size=10)
+        # 创建发布者
+        self.tts_pub = rospy.Publisher('tts_text', String, queue_size=10, latch=True)
+        self.arm_demo_pub = rospy.Publisher('arm_action', String, queue_size=10, latch=True)
+        self.nav_pub = rospy.Publisher('navigation_command', String, queue_size=10)  # 添加导航发布者
         
-        # 订阅arm_cmd话题
-        rospy.Subscriber('arm_cmd', Bool, self.arm_cmd_callback)
+        # 订阅arm_command话题 - 统一话题名称
+        rospy.Subscriber('arm_command', String, self.arm_command_callback)
         
-        rospy.loginfo("Arm controller initialized. Listening to arm_cmd topic...")
+        rospy.loginfo("机械臂控制器已初始化，等待指令...")
     
-    def arm_cmd_callback(self, msg):
-        # 当接收到arm_cmd为true时，发布302到voice_cmd话题
-        if msg.data:
-            cmd = Int32()
-            cmd.data = 302
-            self.voice_cmd_pub.publish(cmd)
-            rospy.loginfo("Received True on arm_cmd, published 302 to voice_cmd")
+    def arm_command_callback(self, msg):
+        """处理机械臂指令"""
+        if msg.data.lower() == "true":
+            rospy.loginfo("收到机械臂启动指令")
             
-            # 等待3秒
-            rospy.loginfo("Waiting 3 seconds before starting arm_demo.py...")
-            time.sleep(3)
+            # 启动机械臂演示
+            self.arm_demo_pub.publish("start")
+            rospy.loginfo("机械臂演示已启动")
+    
+            # 等待机械臂动作完成
+            rospy.loginfo("等待机械臂动作完成...")
+            rospy.sleep(8)
             
-            # 启动arm_demo.py脚本
-            try:
-                subprocess.Popen(["rosrun", "my_dynamixel", "arm_demo.py"])
-                rospy.loginfo("Started arm_demo.py")
-            except Exception as e:
-                rospy.logerr("Failed to start arm_demo.py: %s", str(e))
+            # 发布完成消息
+            self.tts_pub.publish("我已拾取水瓶，现在递给您")
+            rospy.loginfo("机械臂动作完成，已通知TTS")
+            
+            # 等待TTS播放完毕后再发送导航指令
+            rospy.sleep(4)
+            
+            # 发送导航指令回到302房间
+            self.nav_pub.publish("302")
+            rospy.loginfo("已发送导航指令：回到302房间")
 
 def main():
-    controller = ArmController()
-    # 保持节点运行直到被关闭
-    rospy.spin()
+    try:
+        controller = ArmController()
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        rospy.loginfo("机械臂控制器节点关闭")
 
 if __name__ == '__main__':
-    try:
-        main()
-    except rospy.ROSInterruptException:
-        pass
+    main()

@@ -8,74 +8,117 @@ from cv_bridge import CvBridge
 import cv2
 import base64
 from volcenginesdkarkruntime import Ark
+import threading
 
 class VisualRecognitionNode:
     def __init__(self):
         rospy.init_node('visual_recognition', anonymous=True)
-        # 获取图像话题和模型ID
+        # Get image topics and model ID from ROS parameters
         raw_topics = rospy.get_param('~image_topics', ['visual_info'])
-        self.topics: List[str]
-        if isinstance(raw_topics, list):
-            self.topics = raw_topics  # type: ignore
-        else:
-            self.topics = [raw_topics]  # type: ignore
-        # 获取模型ID并确保为字符串
+        self.topics: List[str] = [raw_topics] if isinstance(raw_topics, str) else raw_topics
+        
         raw_model = rospy.get_param('~model', 'doubao-1.5-vision-pro-250328')
         self.model: str = str(raw_model)
+        
         self.bridge = CvBridge()
-        # 缓存按时间戳分组的Base64图像列表123
         self.buffers = {}
         self.expected_count = len(self.topics)
-        # 发布文字描述
+        
+        # Publisher for TTS
         self.pub = rospy.Publisher('tts_text', String, queue_size=10)
-        # 初始化Ark客户端
-        self.client = Ark(api_key='21f84842-2bb0-4a2e-97b4-512aa307703d')
-        # 订阅所有图像话题
+        # Initialize Ark client
+        self.client = Ark(api_key='xxx')
+        
+        # Subscribe to all image topics
         for topic in self.topics:
             rospy.Subscriber(topic, Image, self.image_callback)
+        
+        # Subscribe to visual command topic
+        rospy.Subscriber('visual_command', String, self.visual_command_callback)
+        
+        # 添加状态控制
+        self.should_process = False
+        
         rospy.loginfo(f"Subscribed to topics {self.topics}, using model {self.model}")
+        rospy.loginfo("视觉识别节点等待visual_command指令")
 
-    def image_callback(self, msg):
+    def visual_command_callback(self, msg):
+        """处理视觉识别指令"""
+        if msg.data.lower() == "true":
+            rospy.loginfo("收到场景识别指令，开始处理图像")
+            self.should_process = True
+        else:
+            rospy.logwarn(f"未知的视觉指令: {msg.data}")
+
+    def image_callback(self, msg: Image):
+        # 只有在收到视觉识别指令时才处理图像
+        if not self.should_process:
+            return
+        
         ts = msg.header.stamp.to_nsec()
         try:
-            # 转CV图像并JPEG编码
             cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             ret, buf = cv2.imencode('.jpg', cv_img)
             if not ret:
                 raise ValueError('JPEG encoding failed')
             raw_b64 = base64.b64encode(buf.tobytes()).decode('utf-8')
-            # 构造符合 data URI 规范的 Base64 字符串
             data_uri = f"data:image/jpeg;base64,{raw_b64}"
         except Exception as e:
             rospy.logerr(f"Image conversion error: {e}")
             return
-        # 缓存图像
+            
         lst = self.buffers.setdefault(ts, [])
         lst.append(data_uri)
-        # 如果已收齐同一时间戳的所有图像，则处理
+        
         if len(lst) >= self.expected_count:
             images = self.buffers.pop(ts)
-            self.process_images(images)
+            # 重置处理状态，避免连续处理
+            self.should_process = False
+            # Process in a new thread to keep the callback non-blocking
+            threading.Thread(target=self.process_images_stream, args=(images,)).start()
 
-    def process_images(self, images):
-        # 构造多图像请求内容
-        content = []
+    def process_images_stream(self, images: List[str]):
+        content: List[dict] = []
         for img_b64 in images:
-            content.append({'type':'image_url','image_url':{'url':img_b64}})
-        content.append({'type':'text','text':'请描述上述图片内容。要求尽量简短，缩减到在20字以内。'})
+            content.append({'type': 'image_url', 'image_url': {'url': img_b64}})
+        content.append({'type': 'text', 'text': '请描述你看到了什么。控制在40字以内'})
+        
+        rospy.loginfo("收到场景识别请求，正在进行视觉识别...")
         try:
-            # 调用Ark视觉理解模型，多图像输入
-            resp = cast(Any, self.client.chat.completions.create(
+            # Use stream=True for streaming response
+            resp_stream = cast(Any, self.client.chat.completions.create(
                 model=self.model,
-                messages=[{'role': 'user', 'content': content}]
+                messages=[{'role': 'user', 'content': content}],
+                stream=True
             ))
-            # 从响应中提取文本描述
-            desc = resp.choices[0].message.content  # type: ignore
-            rospy.loginfo(f"Visual description: {desc}")
-            self.pub.publish(desc)
+
+            buffer = ""
+            for chunk in resp_stream:
+                chunk_content = chunk.choices[0].delta.content
+                if chunk_content:
+                    buffer += chunk_content
+                    # Publish sentence by sentence
+                    if any(p in buffer for p in ["。", "！", "？", "...", "\n"]):
+                        sentence, _, remainder = buffer.partition(next(p for p in ["。", "！", "？", "...", "\n"] if p in buffer))
+                        sentence_to_publish = sentence.strip()
+                        if sentence_to_publish:
+                            self.pub.publish(sentence_to_publish)
+                            rospy.loginfo(f"Published sentence: {sentence_to_publish}")
+                        buffer = remainder
+
+            # Publish any remaining text after the loop
+            final_sentence = buffer.strip()
+            if final_sentence:
+                self.pub.publish(final_sentence)
+                rospy.loginfo(f"Published final sentence: {final_sentence}")
+                
         except Exception as e:
             rospy.logerr(f"Ark API error: {e}")
+            self.pub.publish("抱歉，我在识别图像时遇到了问题。")
 
 if __name__ == '__main__':
-    node = VisualRecognitionNode()
-    rospy.spin()
+    try:
+        node = VisualRecognitionNode()
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass

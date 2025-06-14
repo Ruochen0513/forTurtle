@@ -18,3 +18,6 @@ python asr.py
     <!-- 启动机械臂脚本 -->
     <node name="arm_demo" pkg="my_dynamixel" type="arm_demo.py" output="screen" 
         launch-prefix="gnome-terminal --tab --title=ArmControl -e " />
+
+
+        roslaunch turtlebot_rviz_launchers view_navigation.launch --screen 
